@@ -10,6 +10,9 @@ constexpr int DOW = 5; // 요일 수
 constexpr int INTERVAL =  10; // 점수 측정하는 간격
 constexpr int MAX = 9999999;
 
+unsigned int compare = 0;
+unsigned int mathOp = 0;
+
 using namespace std;
 
 //링크리스트의 노드입니다.
@@ -52,8 +55,14 @@ public:
 	void makeTimeTable(int day, float st, float en, int pri);
 	void addWeight(unsigned int (*weightTable)[N_TIMES]);
 	void set_end(int i);
-	linked_node* TimeTable::get_end(int i);
+	void set_next_node();
+	linked_node* get_end();
 };
+
+void TimeTable::set_next_node()
+{
+	end = end->next;
+}
 
 void TimeTable::makeTimeTable(int day, float st, float en, int pri)
 {
@@ -78,7 +87,10 @@ void TimeTable::addWeight(unsigned int (*weightTable)[N_TIMES])
 		while (cur_list)
 		{
 			for (int j = cur_list->start; j <= cur_list->end; j++)
+			{
 				weightTable[i][j] += cur_list->priority;
+				mathOp += 1;
+			}
 			cur_list = cur_list->next;
 		}
 	}
@@ -89,7 +101,7 @@ void TimeTable::set_end(int i)
 	end = linked_vector[i].next;
 }
 
-linked_node* TimeTable::get_end(int i)
+linked_node* TimeTable::get_end()
 {
 	return end;
 }
@@ -104,14 +116,44 @@ private:
 public:
 	void addstudent(string filename);
 	int makeWeightTable();
-	vector<STime> getOptimalTimes();
+	void getOptimalTimes();
 	void set_students_end(int cur_DOW);
+	void show_available_times();
 };
 
+void CheckCollision::show_available_times()
+{
+	for(int i = 0; i < available_times.size(); i++)
+	{
+		switch (available_times[i].dow)
+		{
+		case 0:
+			cout << "월요일 ";
+			break;
+		case 1:
+			cout << "화요일 ";
+			break;
+		case 2:
+			cout << "수요일 ";
+			break;
+		case 3:
+			cout << "목요일 ";
+			break;
+		case 4:
+			cout << "금요일 ";
+			break;
+		default:
+			break;
+		}
+		cout << available_times[i].start << " ~ " << available_times[i].stop << endl;
+	}
+}
+
+//학생들의 end변수를 head를 제외한 해당 요일의 가장 앞 노드를 가르키게 한다.
 void CheckCollision::set_students_end(int cur_DOW)
 {
 	for(int i = 0; i < students.size(); i++)
-		students[i].set_end(cur_DOW)
+		students[i].set_end(cur_DOW);
 }
 
 void CheckCollision::addstudent(string filename)
@@ -124,6 +166,7 @@ void CheckCollision::addstudent(string filename)
 	int day, Priority;
 	float start, end;
 	int a,b;
+	int i = 0;
 	while (!fin.eof())
 	{
 		fin >> temp;
@@ -133,27 +176,70 @@ void CheckCollision::addstudent(string filename)
 		end = stod(temp.substr(a+1, temp.length()+1));
 		b = temp.find(",", a+1);
 		Priority = stoi(temp.substr(b+1, temp.length() + 1));
+		cout << i << "번째" << endl;
 		cout << day << " " << start << " "<< end << " " << Priority << endl;
 		ll.makeTimeTable(day, start, end, Priority);
+		i++;
 	}
 	students.push_back(ll);
 }
 
 int CheckCollision::makeWeightTable()
 {
-	//먼저 단순히 모든 요일의 시간대마다 가중치를 더한 표를 만든다.
-	//그리고 INTERVAL값 만큼의 범위 가중치를 새로운 배열에 넣는다.
-	//개로운 배열에 넣을 때 첫 원소값을 빼고 다음에 올 원소 값을 더한다.
-	//res에는 최소 가중치를 넣는다.
+	//요일마다 INTERVAL를 적용한 가중치 배열을 만든다.
 	int res = MAX;
 	for(int i = 0; i < DOW; i++)
 	{
-		set_students_end(i);
+		set_students_end(i);//학생들의 end변수를 요일의 가장 앞 노드로 지정한다.
+		for(int j = 0; j < N_TIMES - INTERVAL + 1; j++)//weightTable의 열 만큼 이동한다.
+		{
+			//현재 보고 있는 시간대에 해당하는 가중치를 더한다.
+			for(int k = 0; k < students.size(); k++)
+			{
+				//현재 보고 있는 학생의 end가 null이라면 해당 요일의 시간표가 비어있거나 끝났다는 뜻이기 떄문에 넘어간다.
+				//시간표의 끝시간이 시간대의 끝시간보다 크다는 것은 지금 시간대가 아니기 때문에 넘어간다.
+				if(!students[k].get_end())
+				{
+					compare += 1;
+					continue;
+				}
+				else if(students[k].get_end()->start > j + INTERVAL - 1)
+				{
+					compare += 2;
+					continue;
+				}
+				//시간표의 시작 시간이 시간대의 시작 시간보다 작은 경우
+				//뒤에 알맞은 시간표의 시간대가 있을 수 있기 떄문에 end를 다음 노드로 이동시키고 다시 비교
+				//다시 비교했을 때 현재 노드가 null이 아니고 시간표의 시작시간이 시간대의 끝시간대보다 작거나 같은 경우 가중치를 더함
+				else if(students[k].get_end()->end < j)
+				{
+					compare += 5;
+					students[k].set_next_node();
+					if(students[k].get_end() && students[k].get_end()->start <= j + INTERVAL - 1)
+					{
+						mathOp += 1;
+						weightTable[i][j] += students[k].get_end()->priority;
+					}
+				}
+				//그외의 경우 가중치를 더함
+				else
+				{
+					compare += 5;
+					weightTable[i][j] += students[k].get_end()->priority;
+				}
+			}
+			//만약 다 더해진 가중치의 합이 res보다 작으면 더 작은 값으로 갱신한다.
+			if(res > weightTable[i][j])
+			{
+				compare += 1;
+				res = weightTable[i][j];
+			}
+		}
 	}
 	return res;
 }
 
-vector<STime> CheckCollision::getOptimalTimes()
+void CheckCollision::getOptimalTimes()
 {
 	//min에 최소 가중치가 저장된다.
 	//available_times에 min의 가중치와 같은 요일과 시간이 저장된다.
@@ -162,6 +248,7 @@ vector<STime> CheckCollision::getOptimalTimes()
 	{
 		for (int j = 0; j < N_TIMES - INTERVAL + 1; j++)
 		{
+			compare += 1;
 			if (weightTable[i][j] == min)
 			{
 				float start = static_cast<float>(0.5 * j + 1.0);
@@ -171,16 +258,22 @@ vector<STime> CheckCollision::getOptimalTimes()
 			}
 		}
 	}
-	return 	available_times;
 }
 
 int main()
 {
 	CheckCollision c;
 	std::string num;
-	string filename = "data";
-	for (int i = 1; i <= 11; i++) {
+	string fileway;
+	string filename = "/Users/jeongchaeu/Downloads/data/data";
+	for (int i = 1; i <= 100; i++) {
 		num = std::to_string(i);
 		c.addstudent(filename + num + ".txt");
 	}
+	cout << "hello" << endl;
+	c.getOptimalTimes();
+	c.show_available_times();
+	cout << "비교연산 횟수 : " << compare << endl;
+	cout << "사칙연산 횟수 : " << mathOp << endl;
+	cout << "total : " << compare + mathOp << endl;
 }
