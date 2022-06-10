@@ -12,6 +12,7 @@ constexpr int MAX = 9999999;
 
 unsigned int compare = 0;
 unsigned int mathOp = 0;
+unsigned int spaceSize = 0;
 
 using namespace std;
 
